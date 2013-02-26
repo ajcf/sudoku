@@ -6,11 +6,10 @@ class Node
     self.fixed = is_fixed
     self.value = value
     self.possible_values = possible_values if possible_values
-    puts "(#{self.row},#{self.column}): #{self.value}"
   end
 
   def check_value(board, value)
-    puts "checking #{value}"
+    #puts "checking #{value}"
     return !(get_conflicts(board).include? value)
   end
 
@@ -19,21 +18,19 @@ class Node
     conflicts += self.get_row(board)
     conflicts += self.get_column(board)
     conflicts += self.get_square(board)
-    puts conflicts.inspect
     conflicts.collect! {|node| node.value}
     conflicts.delete(nil)
     conflicts.uniq!
-    puts conflicts.inspect
     return conflicts
   end
 
   def update_possible(board)
-    puts "getting possibilities.."
+    #puts "getting possibilities.."
     bad = get_conflicts(board)
-    puts bad.inspect
+    #puts bad.inspect
     list = [1,2,3,4,5,6,7,8,9]
     list.delete_if{|num| bad.include? num}
-    puts list.inspect
+    #puts list.inspect
     self.possible_values = list
   end
 
@@ -94,7 +91,6 @@ def next_node(board)
 
   #method to return next node reading puzzle like a book
   candidate = board[@cur/10][@cur%10]
-  puts candidate.inspect
   @cur += 1
   @cur = 0 if @cur >= 89
   @cur += 1 if @cur%10 == 9
@@ -108,16 +104,68 @@ def next_node(board)
   end
 end
 
+def next_node_mrv(board)
+  if @last
+    x = @last.row
+    y = @last.column
+    y += 1
+    if y == 9
+      y = 0
+      x += 1
+    end
+    if x == 9
+      x = 0
+    end
+    puts "starting at (#{x},#{y})"
+    min = board[x][y]
+  else
+    min = board[0][0]
+  end
+  9.times do |row|
+    9.times do |col|
+      puts min.inspect
+      candidate = board[((min.row + row)%9)-1][((min.column + col)%9)-1]
+      puts "(#{candidate.row},#{candidate.column})"
+      next if candidate.value
+      #puts "(#{candidate.row},#{candidate.column})"
+      #pass over the square if its value has already been set
+      candidate.update_possible(board)
+      if candidate.possible_values.length < min.possible_values.length
+        min = candidate
+        puts "(#{min.row},#{min.column})"
+      end
+    end
+  end
+  puts "chose (#{min.row},#{min.column}) for expansion"
+  @last = min
+  return min
+end
+
+def next_mrv(board)
+  update_all(board)
+  min = board[0][0]
+  min = @last if @last
+  board.each do |row|
+    row.each do |square|
+      next if square.value or square == @last
+      min = square if square.possible_values.length < min.possible_values.length
+    end
+  end
+  return min
+end
+
 def backtracking_search(board)
   return board if satisfied(board)
   node = next_node(board)
-  node.update_possible(board)
+  @guess += node.possible_values.length
   node.possible_values.each do |i|
     if node.check_value(board, i)
       node.value = i
+      puts "(#{node.row},#{node.column}): #{node.value}"
       result = backtracking_search(board)
       if result == 'failure'
         node.value = nil
+        puts "scratch that"
       else
         return board
       end
@@ -135,14 +183,24 @@ def show(board)
   end
 end
 
+def update_all(board)
+  board.each do |row|
+    row.each do |square|
+      square.update_possible(board)
+    end
+  end
+end
 #================ Execution begins here =======================#
 
 @cur = 0
+@guess = 0
+@last = nil
 puzzle = make_sudoku_puzzle(ARGV[0])
 puts "START STATE:"
 show puzzle
+#trim possibility lists
 gameover = backtracking_search(puzzle)
-puts "FINAL STATE:"
+puts "FINAL STATE: (#{@guess} guesses made)"
 if gameover != 'failure'
   show gameover 
 else
